@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tomstemmer</title>
+<style>
+/* Layout: werkbank met twee kolommen - links de meting (toon, naald, advies), rechts het vel met de lugs. */
+:root{
+  --bg:#eef0f4; --panel:#ffffff; --line:#d3d8e2; --fg:#1b2230; --muted:#5d6779;
+  --brass:#9a6b12; --brass-soft:#f3e7cc;
+  --ok:#1f8a4d; --low:#1f6fc4; --high:#c8501e; --empty:#c3c9d6;
+  --font:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#141922; --panel:#1d2430; --line:#323c4d; --fg:#e8ecf3; --muted:#98a3b6;
+  --brass:#e0b354; --brass-soft:#3a3120;
+  --ok:#4cc27f; --low:#62a8f2; --high:#f08a55; --empty:#465064;
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--font)}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px}
+h1{font-size:26px;margin:0;letter-spacing:-.01em}
+h1 span{color:var(--brass)}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 10px;font-weight:600}
+.mic{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap}
+.meter{width:120px;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--ok)}
+button,select,input{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--brass)}
+button:focus-visible,select:focus-visible,input:focus-visible,.lug:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+button.primary{background:var(--brass);border-color:var(--brass);color:var(--bg);font-weight:600}
+button.on{background:var(--ok);border-color:var(--ok);color:var(--bg)}
+select,input[type=number]{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+input[type=number]{width:84px;font-family:var(--mono)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{display:flex;flex-direction:column;align-items:flex-start;min-width:84px;padding:8px 12px;line-height:1.2}
+.chip b{font-size:17px}
+.chip small{color:var(--muted);font-family:var(--mono);font-size:12px}
+.chip.sel{border-color:var(--brass);background:var(--brass-soft)}
+.grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tabs button.sel{border-color:var(--brass);background:var(--brass-soft);font-weight:600}
+.read{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.note{font-size:64px;font-weight:700;line-height:1;letter-spacing:-.02em}
+.hz{font-family:var(--mono);font-size:22px;font-variant-numeric:tabular-nums}
+.target{color:var(--muted);font-family:var(--mono);font-size:13px;margin-top:4px}
+.gauge{position:relative;height:34px;margin:16px 0 4px;border-radius:8px;
+  background:linear-gradient(90deg,var(--low) 0 40%,var(--ok) 40% 60%,var(--high) 60% 100%);opacity:.95}
+.gauge .needle{position:absolute;top:-5px;bottom:-5px;width:4px;margin-left:-2px;background:var(--fg);border-radius:2px;left:50%;transition:left .25s}
+.gauge.idle .needle{opacity:.25}
+.scale{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.advice{margin-top:14px;padding:12px 14px;border-radius:10px;background:var(--bg);border-left:4px solid var(--empty);font-size:16px}
+.advice.ok{border-color:var(--ok)} .advice.low{border-color:var(--low)} .advice.high{border-color:var(--high)}
+.advice small{display:block;color:var(--muted);font-size:13px;margin-top:4px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.drum{display:block;width:100%;max-width:340px;margin:0 auto}
+.lug{cursor:pointer}
+.lug circle{stroke:var(--panel);stroke-width:2}
+.lug text{font:600 11px var(--mono);fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.lug.sel circle{stroke:var(--fg);stroke-width:3}
+.todo{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:4px;font-size:14px}
+.todo li{display:flex;gap:8px;align-items:baseline}
+.todo .n{font-family:var(--mono);color:var(--muted);min-width:52px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none}
+.set{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px 20px}
+.set label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
+.set .inline{display:flex;gap:6px;align-items:center;color:var(--fg);flex-wrap:wrap}
+canvas{width:100%;height:170px;display:block}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+ol.how{margin:0;padding-left:20px;display:grid;gap:6px;max-width:70ch}
+.c-ok{color:var(--ok)} .c-low{color:var(--low)} .c-high{color:var(--high)} .c-muted{color:var(--muted)}
+.msg{color:var(--high);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tom<span>stemmer</span></h1>
+    <div class="mic">
+      <span id="micMsg" class="msg"></span>
+      <div class="meter" title="Ingangsniveau"><i id="level"></i></div>
+      <button id="micBtn" class="primary">Microfoon aan</button>
+    </div>
+  </header>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="grid">
+    <section class="card">
+      <div class="tabs" id="tabs"></div>
+      <div id="readout"></div>
+      <div class="row">
+        <button id="refBtn">Speel doeltoon</button>
+        <button id="clearBtn">Wis metingen van deze tom</button>
+        <button id="demoBtn" title="Simuleert een slag, zodat je de app zonder microfoon kunt uitproberen">Testslag zonder microfoon</button>
+      </div>
+    </section>
+    <section class="card">
+      <h2 id="drumTitle">Vel</h2>
+      <div id="drum"></div>
+      <ul class="todo" id="todo"></ul>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Instellingen voor deze tom</h2>
+    <div class="set" id="settings"></div>
+  </section>
+
+  <section class="card">
+    <h2>Spectrum van de laatste slag</h2>
+    <canvas id="spec" width="1000" height="170"></canvas>
+  </section>
+
+  <section class="card">
+    <h2>Overzicht van de kit</h2>
+    <div class="tablewrap"><table id="overview"></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Zo stem je een tom</h2>
+    <ol class="how">
+      <li>Draai beide vellen handvast en gelijkmatig aan, tot de rimpels weg zijn.</li>
+      <li><b>Grondtoon:</b> hang de tom op, houd de microfoon 5 tot 10 cm boven het midden en sla één keer in het midden. De app zegt of beide vellen strakker of losser moeten.</li>
+      <li><b>Lugs slagvel:</b> leg een vinger licht in het midden van het vel en tik ongeveer 3 cm van de rand bij de gemarkeerde lug. Volg het advies per spanschroef tot alle lugs groen zijn.</li>
+      <li><b>Lugs resonantievel:</b> draai de tom om en doe hetzelfde.</li>
+      <li>Meet de grondtoon opnieuw. Stem altijd van onderaf naar de toon toe: eerst iets te los, dan aandraaien.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+'use strict';
+/* ---------- muziek- en stemlogica (geen DOM) ---------- */
+const SIZES={8:{f:174.6,l:5},10:{f:146.8,l:6},12:{f:123.5,l:6},13:{f:110,l:6},14:{f:98,l:8},16:{f:73.4,l:8},18:{f:61.7,l:8}};
+const RES={
+  max:{top:1.75,bottom:1.75,label:'Maximaal (lange sustain)'},
+  high:{top:1.5,bottom:1.85,label:'Veel'},
+  med:{top:1.4,bottom:2.0,label:'Gemiddeld'},
+  low:{top:1.2,bottom:2.3,label:'Weinig (kort en droog)'}
+};
+const NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const TOL=20; // cent
+function noteOf(f){const m=69+12*Math.log2(f/440),r=Math.round(m);return{name:NOTES[((r%12)+12)%12]+(Math.floor(r/12)-1),cents:(m-r)*100};}
+function cents(f,t){return 1200*Math.log2(f/t);}
+function turnAdvice(c){const a=Math.abs(c);if(a<=TOL)return null;
+  const amount=a<50?'een fractie (± 1/16 slag)':a<120?'± 1/8 slag':a<250?'± 1/4 slag':'± 1/2 slag';
+  return{dir:c<0?'aandraaien':'losser draaien',amount,cls:c<0?'low':'high'};}
+function starOrder(n){const o=[];if(n%2===0){for(let i=0;i<n/2;i++)o.push(i,i+n/2);}else{let k=0;for(let i=0;i<n;i++){o.push(k);k=(k+Math.floor(n/2))%n;}}return o;}
+
+function fft(re,im){const n=re.length;
+  for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t;}}
+  for(let len=2;len<=n;len<<=1){const ang=-2*Math.PI/len,wr=Math.cos(ang),wi=Math.sin(ang);
+    for(let i=0;i<n;i+=len){let cr=1,ci=0;for(let k=0;k<len/2;k++){const a=i+k,b=a+len/2;
+      const xr=re[b]*cr-im[b]*ci,xi=re[b]*ci+im[b]*cr;re[b]=re[a]-xr;im[b]=im[a]-xi;re[a]+=xr;im[a]+=xi;
+      const t=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=t;}}}}
+
+/* Zoekt de toon van één slag. lowest=true: laagste sterke piek (grondtoon); anders de sterkste piek (lugtoon). */
+function analyze(seg,sr,lo,hi,lowest){
+  const n=seg.length;let N=32768;while(N<n*1.5)N*=2;
+  const re=new Float64Array(N),im=new Float64Array(N);
+  let mean=0;for(let i=0;i<n;i++)mean+=seg[i];mean/=n;
+  for(let i=0;i<n;i++)re[i]=(seg[i]-mean)*(0.5-0.5*Math.cos(2*Math.PI*i/(n-1)));
+  fft(re,im);
+  const binHz=sr/N,top=Math.min(N/2-2,Math.ceil(750/binHz));
+  const mag=new Float32Array(top+1);
+  for(let i=0;i<=top;i++)mag[i]=Math.hypot(re[i],im[i]);
+  const a=Math.max(2,Math.ceil(lo/binHz)),b=Math.min(top-1,Math.floor(hi/binHz));
+  const peaks=[],band=[];let M=0;
+  for(let i=a;i<=b;i++){band.push(mag[i]);if(mag[i]>mag[i-1]&&mag[i]>=mag[i+1]){peaks.push(i);if(mag[i]>M)M=mag[i];}}
+  const spec={binHz,mag};
+  if(!peaks.length)return{freq:null,strength:0,spec};
+  band.sort((x,y)=>x-y);const med=band[band.length>>1]||1e-12;
+  const pick=lowest?peaks.find(i=>mag[i]>=0.45*M):peaks.find(i=>mag[i]===M);
+  const l=Math.log(mag[pick-1]+1e-12),c=Math.log(mag[pick]+1e-12),r=Math.log(mag[pick+1]+1e-12);
+  const d=(l-2*c+r)===0?0:0.5*(l-r)/(l-2*c+r);
+  return{freq:(pick+d)*binHz,strength:mag[pick]/med,spec};
+}
+function synthHit(sr,f1,f2,a1,a2){const n=Math.floor(sr*0.5),b=new Float32Array(n);
+  for(let i=0;i<n;i++){const t=i/sr;b[i]=a1*Math.sin(2*Math.PI*f1*t)*Math.exp(-t*7)+a2*Math.sin(2*Math.PI*f2*t)*Math.exp(-t*10)+0.3*(Math.random()*2-1)*Math.exp(-t*120);}
+  return b;}
+
+function newTom(size){const s=SIZES[size];return{id:Date.now()+Math.floor(Math.random()*1000),size,lugs:s.l,target:s.f,res:'high',lugRef:'table',
+  meas:{fund:null,top:Array(s.l).fill(null),bottom:Array(s.l).fill(null)}};}
+function lugTarget(tom,head){const m=tom.meas[head].filter(x=>x!=null);
+  if(tom.lugRef==='avg'&&m.length>=2)return m.reduce((p,q)=>p+q,0)/m.length;
+  return tom.target*RES[tom.res][head];}
+function bandFor(tom,mode,filter){
+  if(mode==='fund')return filter?{lo:tom.target*0.6,hi:tom.target*1.6,lowest:true}:{lo:40,hi:400,lowest:true};
+  const t=tom.target*RES[tom.res][mode];
+  return filter?{lo:t*0.72,hi:t*1.45,lowest:false}:{lo:Math.max(60,(tom.meas.fund||tom.target)*1.25),hi:700,lowest:false};}
+
+/* ---------- app ---------- */
+if(typeof document!=='undefined')(function(){
+const $=id=>document.getElementById(id);
+const KEY='tomstemmer.v1';
+let S={kit:[],filter:true,sens:0.06};
+try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&Array.isArray(j.kit)&&j.kit.length)S=Object.assign(S,j);}catch(e){}
+if(!S.kit.length)S.kit=[newTom(10),newTom(12),newTom(16)];
+let cur={tom:S.kit[0].id,mode:'fund',lug:0};
+let last=null,note='';
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}};
+const tom=()=>S.kit.find(t=>t.id===cur.tom)||S.kit[0];
+const fmt=(x,d=1)=>x.toFixed(d).replace('.',',');
+const MODES={fund:'1 · Grondtoon',top:'2 · Lugs slagvel',bottom:'3 · Lugs resonantievel'};
+function curTarget(){const t=tom();return cur.mode==='fund'?t.target:lugTarget(t,cur.mode);}
+function curValue(){const t=tom();return cur.mode==='fund'?t.meas.fund:t.meas[cur.mode][cur.lug];}
+function cls(c){return Math.abs(c)<=TOL?'ok':c<0?'low':'high';}
+
+function renderChips(){
+  const used=S.kit.map(t=>t.size);
+  $('chips').innerHTML=S.kit.map(t=>`<button class="chip ${t.id===cur.tom?'sel':''}" data-tom="${t.id}"><b>${t.size}"</b><small>${noteOf(t.target).name} · ${fmt(t.target)} Hz</small></button>`).join('')
+   +`<select id="addTom" aria-label="Tom toevoegen"><option value="">+ tom toevoegen</option>${Object.keys(SIZES).map(s=>`<option value="${s}">${s}"${used.includes(+s)?' (nog een)':''}</option>`).join('')}</select>`;
+}
+function renderTabs(){$('tabs').innerHTML=Object.keys(MODES).map(m=>`<button data-mode="${m}" class="${m===cur.mode?'sel':''}">${MODES[m]}</button>`).join('');}
+function renderReadout(){
+  const t=tom(),tg=curTarget(),v=curValue();
+  const what=cur.mode==='fund'?'grondtoon':`lug ${cur.lug+1}`;
+  let h='';
+  if(v==null){
+    h+=`<div class="read"><div class="note c-muted">–</div><div class="hz c-muted">nog niet gemeten</div></div>`;
+  }else{
+    const n=noteOf(v);
+    h+=`<div class="read"><div class="note">${n.name}</div><div class="hz">${fmt(v)} Hz</div></div>`;
+  }
+  h+=`<div class="target">Doel ${what}: ${noteOf(tg).name} · ${fmt(tg)} Hz${cur.mode!=='fund'&&t.lugRef==='avg'&&t.meas[cur.mode].filter(x=>x!=null).length>=2?' (gemiddelde van gemeten lugs)':''}</div>`;
+  const c=v==null?0:cents(v,tg);
+  h+=`<div class="gauge ${v==null?'idle':''}"><div class="needle" style="left:${50+Math.max(-100,Math.min(100,c))/2}%"></div></div>
+      <div class="scale"><span>te laag</span><span>goed</span><span>te hoog</span></div>`;
+  let ac='',txt='',sub='';
+  if(note){txt=note;ac='high';}
+  else if(v==null){
+    txt=cur.mode==='fund'?'Houd de microfoon 5 tot 10 cm boven het midden en sla één keer in het midden van het vel.'
+      :`Leg een vinger licht in het midden en tik ± 3 cm van de rand bij lug ${cur.lug+1}.`;
+    if(!micOn)sub='Zet eerst de microfoon aan (rechtsboven).';
+  }else{
+    const adv=turnAdvice(c),dHz=v-tg;ac=cls(c);
+    if(!adv){
+      txt=cur.mode==='fund'?`Grondtoon zit goed (${fmt(Math.abs(c),0)} cent van het doel).`:`Lug ${cur.lug+1} zit goed.`;
+      sub=cur.mode==='fund'?'Controleer nu de lugs van het slagvel en het resonantievel.':nextHint(t);
+    }else if(cur.mode==='fund'){
+      txt=`Grondtoon is ${fmt(Math.abs(dHz))} Hz (${fmt(Math.abs(c),0)} cent) te ${c<0?'laag':'hoog'}: alle spanschroeven van beide vellen ${adv.amount} ${adv.dir}.`;
+      sub='Werk kruislings en gelijkmatig, en meet daarna opnieuw.';
+    }else{
+      txt=`Lug ${cur.lug+1} is ${fmt(Math.abs(dHz))} Hz te ${c<0?'laag':'hoog'}: ${adv.amount} ${adv.dir}.`;
+      sub='Tik opnieuw bij deze lug om te controleren. De hoeveelheid is een indicatie.';
+    }
+  }
+  h+=`<div class="advice ${ac}">${txt}${sub?`<small>${sub}</small>`:''}</div>`;
+  $('readout').innerHTML=h;
+}
+function nextHint(t){const arr=t.meas[cur.mode];if(arr.some(x=>x==null))return'Ga door met de volgende gemarkeerde lug.';
+  const tg=lugTarget(t,cur.mode),bad=arr.filter(x=>Math.abs(cents(x,tg))>TOL).length;
+  return bad?`Nog ${bad} lug${bad>1?'s':''} bij te stellen.`:`Dit vel is gelijkmatig gestemd (spreiding ${fmt(Math.max(...arr)-Math.min(...arr))} Hz).`;}
+function renderDrum(){
+  const t=tom(),n=t.lugs,head=cur.mode==='fund'?'top':cur.mode,arr=t.meas[head],tg=lugTarget(t,head),isLug=cur.mode!=='fund';
+  $('drumTitle').textContent=(head==='top'?'Slagvel':'Resonantievel')+` · ${t.size}" · ${n} lugs`;
+  const css=getComputedStyle(document.documentElement),col=k=>css.getPropertyValue('--'+k).trim();
+  let s=`<svg class="drum" viewBox="0 0 300 300" role="img" aria-label="Vel met lugs">
+    <circle cx="150" cy="150" r="112" fill="${col('brass-soft')}" stroke="${col('brass')}" stroke-width="6"/>
+    <circle cx="150" cy="150" r="96" fill="${col('panel')}" stroke="${col('line')}" stroke-width="1"/>`;
+  if(!isLug)s+=`<circle cx="150" cy="150" r="12" fill="${col('brass')}"/><text x="150" y="180" text-anchor="middle" font-size="12" fill="${col('muted')}">sla hier</text>`;
+  for(let i=0;i<n;i++){
+    const ang=(-90+i*360/n)*Math.PI/180,x=150+126*Math.cos(ang),y=150+126*Math.sin(ang),v=arr[i];
+    const c=v==null?null:cents(v,tg),fill=v==null?col('empty'):col(cls(c));
+    const lab=v==null?(i+1):((v-tg>=0?'+':'−')+fmt(Math.abs(v-tg),Math.abs(v-tg)<10?1:0));
+    if(isLug&&i===cur.lug){const hx=150+80*Math.cos(ang),hy=150+80*Math.sin(ang);
+      s+=`<circle cx="${hx}" cy="${hy}" r="8" fill="${col('brass')}"/>`;}
+    s+=`<g class="lug ${isLug&&i===cur.lug?'sel':''}" data-lug="${i}" tabindex="0" role="button" aria-label="Lug ${i+1}"><circle cx="${x}" cy="${y}" r="19" fill="${fill}"/><text x="${x}" y="${y}">${lab}</text></g>`;
+  }
+  $('drum').innerHTML=s+'</svg>';
+  const order=starOrder(n);
+  $('todo').innerHTML=arr.every(x=>x==null)?`<li class="c-muted">${isLug?'Nog geen lugs gemeten. Getallen in de lugs tonen straks de afwijking in Hz.':'Kies stap 2 of 3 om de lugs te meten.'}</li>`
+   :order.filter(i=>arr[i]!=null).map(i=>{const c=cents(arr[i],tg),a=turnAdvice(c);
+     return`<li><span class="dot" style="background:${col(cls(c))}"></span><span class="n">Lug ${i+1}</span><span>${fmt(arr[i])} Hz · ${a?`${a.amount} ${a.dir}`:'goed'}</span></li>`;}).join('');
+}
+function renderSettings(){
+  const t=tom();
+  $('settings').innerHTML=`
+   <label>Doel grondtoon<span class="inline"><button id="semiDown" aria-label="Halve toon lager">−</button><input id="tgt" type="number" min="40" max="400" step="0.1" value="${t.target.toFixed(1)}"> Hz <b>${noteOf(t.target).name}</b><button id="semiUp" aria-label="Halve toon hoger">+</button></span></label>
+   <label>Resonantie<select id="res">${Object.keys(RES).map(k=>`<option value="${k}" ${k===t.res?'selected':''}>${RES[k].label}</option>`).join('')}</select></label>
+   <label>Aantal lugs<select id="lugs">${[4,5,6,8,10].map(k=>`<option ${k===t.lugs?'selected':''}>${k}</option>`).join('')}</select></label>
+   <label>Lugs vergelijken met<select id="lugRef"><option value="table" ${t.lugRef==='table'?'selected':''}>Doeltoon uit tabel</option><option value="avg" ${t.lugRef==='avg'?'selected':''}>Gemiddelde van gemeten lugs</option></select></label>
+   <label>Zoekfilter<span class="inline"><input id="filter" type="checkbox" ${S.filter?'checked':''}> alleen rond de doeltoon zoeken</span></label>
+   <label>Gevoeligheid microfoon<input id="sens" type="range" min="0.01" max="0.3" step="0.01" value="${(0.31-S.sens).toFixed(2)}"></label>
+   <label>Tom<span class="inline"><button id="delTom" ${S.kit.length<2?'disabled':''}>Verwijder deze tom</button></span></label>`;
+}
+function renderOverview(){
+  const dev=(v,tg)=>{if(v==null)return'<td class="num c-muted">–</td>';const c=cents(v,tg);return`<td class="num c-${cls(c)}">${fmt(v)} Hz (${c>=0?'+':'−'}${fmt(Math.abs(c),0)} ct)</td>`;};
+  const even=(t,h)=>{const m=t.meas[h].filter(x=>x!=null);if(m.length<2)return'<td class="num c-muted">–</td>';const sp=Math.max(...m)-Math.min(...m);
+    return`<td class="num">${m.length}/${t.lugs} · spreiding ${fmt(sp)} Hz</td>`;};
+  const IV={0:'gelijk',1:'kleine secunde',2:'grote secunde',3:'kleine terts',4:'grote terts',5:'kwart',6:'tritonus',7:'kwint'};
+  const kit=S.kit.slice().sort((a,b)=>b.target-a.target);
+  $('overview').innerHTML=`<tr><th>Tom</th><th>Doel</th><th>Gemeten grondtoon</th><th>Slagvel</th><th>Resonantievel</th><th>Interval naar volgende</th></tr>`
+   +kit.map((t,i)=>{const nx=kit[i+1],st=nx?Math.round(12*Math.log2(t.target/nx.target)):null;
+     return`<tr><td><b>${t.size}"</b></td><td class="num">${noteOf(t.target).name} · ${fmt(t.target)} Hz</td>${dev(t.meas.fund,t.target)}${even(t,'top')}${even(t,'bottom')}<td>${nx?(IV[st]||st+' halve tonen'):''}</td></tr>`;}).join('');
+}
+function drawSpec(){
+  const cv=$('spec'),g=cv.getContext('2d'),W=cv.width,H=cv.height,css=getComputedStyle(document.documentElement),col=k=>css.getPropertyValue('--'+k).trim();
+  g.clearRect(0,0,W,H);g.font='12px sans-serif';
+  const f0=30,f1=last?Math.min(700,Math.max(300,last.band.hi*1.3)):400,x=f=>(f-f0)/(f1-f0)*W;
+  g.strokeStyle=col('line');g.fillStyle=col('muted');g.lineWidth=1;
+  for(let f=50;f<f1;f+=50){g.beginPath();g.moveTo(x(f),0);g.lineTo(x(f),H-16);g.stroke();g.fillText(f+' Hz',x(f)+3,H-3);}
+  if(!last){g.fillText('Hier verschijnt het spectrum zodra je een slag hebt gemeten.',12,24);return;}
+  const {mag,binHz}=last.spec;let mx=0;for(let i=Math.floor(f0/binHz);i<mag.length&&i*binHz<f1;i++)mx=Math.max(mx,mag[i]);
+  g.fillStyle=col('brass-soft');g.fillRect(x(last.band.lo),0,x(last.band.hi)-x(last.band.lo),H-16);
+  g.strokeStyle=col('brass');g.lineWidth=2;g.beginPath();
+  for(let i=Math.floor(f0/binHz);i<mag.length&&i*binHz<f1;i++){const y=(H-18)-(mag[i]/mx)*(H-26);i===Math.floor(f0/binHz)?g.moveTo(x(i*binHz),y):g.lineTo(x(i*binHz),y);}
+  g.stroke();
+  g.setLineDash([5,4]);g.strokeStyle=col('muted');g.beginPath();g.moveTo(x(last.target),0);g.lineTo(x(last.target),H-16);g.stroke();g.setLineDash([]);
+  g.fillStyle=col('muted');g.fillText('doel',x(last.target)+4,12);
+  if(last.freq){g.strokeStyle=col('fg');g.beginPath();g.moveTo(x(last.freq),0);g.lineTo(x(last.freq),H-16);g.stroke();g.fillStyle=col('fg');g.fillText('gemeten '+fmt(last.freq)+' Hz',x(last.freq)+4,26);}
+}
+function renderAll(){renderChips();renderTabs();renderReadout();renderDrum();renderSettings();renderOverview();drawSpec();}
+function renderLive(){renderChips();renderReadout();renderDrum();renderOverview();drawSpec();}
+
+/* ---------- een slag verwerken ---------- */
+function handleHit(buf,sr){
+  const t=tom(),skip=Math.floor(sr*0.02),len=Math.min(buf.length-skip,Math.floor(sr*0.4));
+  if(len<sr*0.15)return;
+  const band=bandFor(t,cur.mode,S.filter),r=analyze(buf.subarray(skip,skip+len),sr,band.lo,band.hi,band.lowest);
+  const ok=r.freq&&r.strength>=6;
+  last={spec:r.spec,band,target:curTarget(),freq:ok?r.freq:null};
+  if(!ok){note=S.filter?'Geen duidelijke toon in het zoekgebied. Sla nog eens, of zet het zoekfilter uit als de tom nog ver van de doeltoon zit.':'Geen duidelijke toon gevonden. Sla nog eens, iets dichter bij de microfoon.';renderLive();return;}
+  note='';
+  if(cur.mode==='fund')t.meas.fund=r.freq;
+  else{t.meas[cur.mode][cur.lug]=r.freq;}
+  save();renderLive();
+}
+function advanceLug(){const t=tom(),arr=t.meas[cur.mode],o=starOrder(t.lugs),p=o.indexOf(cur.lug);
+  for(let k=1;k<=o.length;k++){const i=o[(p+k)%o.length];if(arr[i]==null){cur.lug=i;return;}}}
+
+/* ---------- microfoon ---------- */
+let ctx=null,micOn=false,stream=null,ring=null,total=0,state='idle',onset=0,waitUntil=0,noise=0.005,lvl=0;
+function onBlock(d){
+  const R=ring.length;let peak=0,first=-1;const thr=Math.max(S.sens,noise*8);
+  for(let i=0;i<d.length;i++){const v=d[i];ring[(total+i)%R]=v;const a=v<0?-v:v;if(a>peak)peak=a;if(first<0&&a>thr)first=i;}
+  const start=total;total+=d.length;lvl=Math.max(lvl*0.8,peak);
+  if(state==='idle'){
+    if(first>=0){state='cap';onset=start+first;}
+    else{let s=0;for(let i=0;i<d.length;i++)s+=d[i]*d[i];noise=noise*0.95+Math.sqrt(s/d.length)*0.05;}
+  }else if(state==='cap'){
+    const need=Math.floor(ctx.sampleRate*0.43);
+    if(total-onset>=need){const buf=new Float32Array(need);for(let i=0;i<need;i++)buf[i]=ring[(onset+i)%R];
+      state='wait';waitUntil=total+ctx.sampleRate*0.25;
+      const wasLug=cur.mode!=='fund',before=wasLug?tom().meas[cur.mode][cur.lug]:null;
+      handleHit(buf,ctx.sampleRate);
+      if(wasLug&&before==null&&!note){const v=tom().meas[cur.mode][cur.lug];
+        if(v!=null&&Math.abs(cents(v,lugTarget(tom(),cur.mode)))<=TOL){advanceLug();renderLive();}}
+    }
+  }else if(total>waitUntil&&peak<thr*0.5)state='idle';
+}
+async function toggleMic(){
+  $('micMsg').textContent='';
+  if(micOn){stream.getTracks().forEach(t=>t.stop());await ctx.close();ctx=null;micOn=false;}
+  else{
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('micMsg').textContent='Deze browser geeft hier geen microfoontoegang. Open de pagina in Chrome of Edge.';return;}
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+      ctx=new (window.AudioContext||window.webkitAudioContext)();
+      ring=new Float32Array(Math.floor(ctx.sampleRate*2));total=0;state='idle';
+      const src=ctx.createMediaStreamSource(stream),proc=ctx.createScriptProcessor(2048,1,1),mute=ctx.createGain();
+      mute.gain.value=0;src.connect(proc);proc.connect(mute);mute.connect(ctx.destination);
+      proc.onaudioprocess=e=>onBlock(e.inputBuffer.getChannelData(0));
+      micOn=true;
+    }catch(e){$('micMsg').textContent='Geen toegang tot de microfoon. Sta de microfoon toe in je browser en probeer opnieuw.';}
+  }
+  $('micBtn').textContent=micOn?'Luistert… (klik om te stoppen)':'Microfoon aan';
+  $('micBtn').className=micOn?'on':'primary';renderReadout();
+}
+(function tick(){$('level').style.width=Math.min(100,lvl*220)+'%';if(!micOn)lvl=0;requestAnimationFrame(tick);})();
+
+function playRef(){
+  const c=ctx||new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain(),t0=c.currentTime;
+  o.frequency.value=curTarget();g.gain.setValueAtTime(0.0001,t0);g.gain.exponentialRampToValueAtTime(0.4,t0+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t0+1.6);
+  o.connect(g);g.connect(c.destination);o.start();o.stop(t0+1.7);
+  if(micOn){state='wait';waitUntil=total+c.sampleRate*1.9;}
+  else o.onended=()=>c.close();
+}
+function demo(){
+  const t=tom(),sr=48000,jit=(1+(Math.random()-0.5)*0.14);let b;
+  if(cur.mode==='fund')b=synthHit(sr,t.target*jit,t.target*jit*1.72,0.8,0.3);
+  else b=synthHit(sr,t.meas.fund||t.target,t.target*RES[t.res][cur.mode]*jit,0.25,0.8);
+  handleHit(b,sr);
+}
+
+/* ---------- bediening ---------- */
+document.addEventListener('click',e=>{
+  const el=e.target.closest('[data-tom],[data-mode],[data-lug],button');if(!el)return;
+  if(el.dataset.tom){cur.tom=+el.dataset.tom;cur.lug=0;last=null;note='';renderAll();}
+  else if(el.dataset.mode){cur.mode=el.dataset.mode;cur.lug=0;note='';last=null;
+    if(cur.mode!=='fund'){const a=tom().meas[cur.mode];if(a[0]!=null&&a.some(x=>x==null))advanceLug();}renderAll();}
+  else if(el.dataset.lug){if(cur.mode==='fund')cur.mode='top';cur.lug=+el.dataset.lug;note='';renderAll();}
+  else if(el.id==='micBtn')toggleMic();
+  else if(el.id==='refBtn')playRef();
+  else if(el.id==='demoBtn')demo();
+  else if(el.id==='clearBtn'){const t=tom();t.meas={fund:null,top:Array(t.lugs).fill(null),bottom:Array(t.lugs).fill(null)};cur.lug=0;last=null;note='';save();renderAll();}
+  else if(el.id==='semiUp'||el.id==='semiDown'){const t=tom();t.target=+(t.target*Math.pow(2,(el.id==='semiUp'?1:-1)/12)).toFixed(1);save();renderAll();}
+  else if(el.id==='delTom'&&S.kit.length>1){S.kit=S.kit.filter(t=>t.id!==cur.tom);cur.tom=S.kit[0].id;cur.lug=0;last=null;save();renderAll();}
+});
+document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.dataset&&e.target.dataset.lug){e.preventDefault();e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));}});
+document.addEventListener('change',e=>{
+  const t=tom(),id=e.target.id,v=e.target.value;
+  if(id==='addTom'&&v){const n=newTom(+v);S.kit.push(n);S.kit.sort((a,b)=>a.size-b.size);cur.tom=n.id;cur.lug=0;last=null;}
+  else if(id==='tgt'){const f=parseFloat(v);if(f>=40&&f<=400)t.target=f;}
+  else if(id==='res')t.res=v;
+  else if(id==='lugs'){t.lugs=+v;t.meas.top=Array(t.lugs).fill(null);t.meas.bottom=Array(t.lugs).fill(null);cur.lug=0;}
+  else if(id==='lugRef')t.lugRef=v;
+  else if(id==='filter')S.filter=e.target.checked;
+  else if(id==='sens'){S.sens=+(0.31-parseFloat(v)).toFixed(2);save();return;}
+  else return;
+  save();renderAll();
+});
+if(window.matchMedia)window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',renderAll);
+renderAll();
+})();
+if(typeof module!=='undefined')module.exports={analyze,synthHit,noteOf,cents,turnAdvice,starOrder,bandFor,lugTarget,newTom,RES};
+</script>
+</body>
+</html>
